@@ -2,7 +2,7 @@
 a golang simple ftp client to get or put files 
 
 # example
-
+```go
 package main
 
 import (
@@ -36,4 +36,4 @@ func main() {
     ftp.Quit()
  
 }
-
+```
