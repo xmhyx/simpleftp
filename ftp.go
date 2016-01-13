@@ -1,6 +1,6 @@
 // FTP Client for Google Go language.
 // Original Author: smallfish <smallfish.xy@gmail.com>
-// Modifier:xmhyx  2016.01.12
+// Modified:xmhyx  2016.01.13
 
 package ftp
 
@@ -34,6 +34,7 @@ func (ftp *FTP) debugInfo(s string) {
 }
 
 func (ftp *FTP) Connect(host string, port int) error {
+    ftp.conn =nil
     ftp.debugInfo("start connecting..." ) 
     addr := fmt.Sprintf("%s:%d", host, port) 
     con,err:=net.Dial("tcp", addr)
@@ -56,6 +57,10 @@ func (ftp *FTP) Login(user, passwd string) {
 
 func (ftp *FTP) Response() error  {
     ret := make([]byte, 1024)
+    if ftp.conn==nil {
+       ftp.debugInfo("no connection." ) 
+       return errors.New("no connection.")
+    }
     n, err := ftp.conn.Read(ret)
     if err!=nil {
        return err
@@ -68,7 +73,14 @@ func (ftp *FTP) Response() error  {
 }
 
 func (ftp *FTP) Request(cmd string ) error {
-    ftp.conn.Write([]byte(cmd + "\r\n"))
+    if ftp.conn==nil {
+       ftp.debugInfo("no connection." ) 
+       return errors.New("no connection.")
+    }
+    _,err:=ftp.conn.Write([]byte(cmd + "\r\n"))
+    if err!=nil {
+       return err
+    }
     ftp.cmd = cmd
     ftp.debugInfo("<*sent cmd*> " + ftp.cmd) 
     return ftp.Response() 
@@ -92,6 +104,7 @@ func (ftp *FTP) Pasv() {
 }
 
 func (ftp *FTP) newdataconn() (net.Conn,error){
+   ftp.Pasv()
    if ftp.pasv>0{
       dataconn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ftp.host, ftp.pasv)) 
       if err != nil {
@@ -123,7 +136,6 @@ func (ftp *FTP) Size(path string) (size int) {
 
 func (ftp *FTP) List() (string,error) {
     list_cont:="" 
-    ftp.Pasv()
     dataconn, err :=ftp.newdataconn()       
     if err!=nil{   
        return list_cont,err
@@ -157,7 +169,6 @@ func (ftp *FTP) Stor(file string) error {
     if err != nil {
 	return err
 	}
-    ftp.Pasv()
     dataconn, err:=ftp.newdataconn() 
     if err!=nil {
        return err
@@ -177,8 +188,6 @@ func (ftp *FTP) Stor(file string) error {
 }
 
 func (ftp *FTP) Retr(srcfile,dstfile string) error {   
-    ftp.Pasv() 
-    
     dataconn, err:=ftp.newdataconn()
     if err!=nil{
        return err
@@ -192,7 +201,7 @@ func (ftp *FTP) Retr(srcfile,dstfile string) error {
     if e != nil {
         ftp.debugInfo(fmt.Sprintf("create file failed %s" ,dstfile))
         dataconn.Close()
-	return err
+	return e
     }
     io.Copy(File,dataconn)
     File.Close()
@@ -204,5 +213,7 @@ func (ftp *FTP) Retr(srcfile,dstfile string) error {
 
 func (ftp *FTP) Quit() {
     ftp.Request("QUIT")
-    ftp.conn.Close()
+    if ftp.conn!=nil{   
+       ftp.conn.Close()
+    }   
 }
